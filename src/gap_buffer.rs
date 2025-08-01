@@ -29,6 +29,28 @@ impl GapBuffer {
         self.length += 1;
     }
 
+    // Removes the char before the gap_start
+    pub fn remove(&mut self) {
+        if self.gap_start > 0 {
+            self.length -= 1;
+            self.gap_start -= 1;
+
+            self.buffer[self.gap_start] = '\0';
+        }
+    }
+
+    // Remove N chars before gap_start
+    pub fn remove_n(&mut self, n: usize) {
+        if n > 0 && self.gap_start > n - 1 {
+            self.length -= n;
+
+            for _ in (self.gap_start - n)..self.gap_start {
+                self.gap_start -= 1;
+                self.buffer[self.gap_start] = char::default();
+            }
+        }
+    }
+
     pub fn insert_str(&mut self, string: &str) {
         self.length += string.len();
 
@@ -39,36 +61,13 @@ impl GapBuffer {
     }
 
     pub fn move_to(&mut self, new_idx: usize) {
-        if new_idx < self.length {
-            // Move all values past the new index to the gap end
-            if new_idx < self.gap_start {
-                for i in new_idx..self.gap_start {
-                    let after_gap_idx = i + (self.gap_end - self.gap_start) + 1;
-
-                    self.buffer[after_gap_idx] = self.buffer[i];
-                    self.buffer[i] = char::default();
-                }
-
-                self.gap_end -= self.gap_start - new_idx;
-            }
-            // Move all values past the gap end to their original position (up to the new index)
-            else if new_idx > self.gap_start {
-                for i in (self.gap_end + 1)..(BUFFER_LEN - (self.length - new_idx)) {
-                    let before_gap_idx = i - (self.gap_end - (new_idx - self.gap_start)) - 1;
-
-                    self.buffer[before_gap_idx] = self.buffer[i];
-                    self.buffer[i] = char::default();
-                }
-
-                self.gap_end += self.length - new_idx - 1;
-            }
-
-            // self.current_idx = new_idx;
-            self.gap_start = new_idx;
+        // Don't need to do anything if the move doesn't actually move anywhere
+        if new_idx == self.gap_start {
+            return;
         }
-        // New index is within the gap, but past the length
-        // --> Force all chars to be connected (Cant write to arbitrary parts of the gap)
-        else if new_idx > self.length {
+
+        if new_idx > self.length {
+            // Moved past the text length (Move gap to end of text)
             for i in (self.gap_end + 1)..BUFFER_LEN {
                 let before_gap_idx = i - (self.gap_end - self.gap_start) - 1;
 
@@ -76,9 +75,32 @@ impl GapBuffer {
                 self.buffer[i] = char::default();
             }
 
-            // self.current_idx = self.length;
             self.gap_start = self.length;
             self.gap_end = BUFFER_LEN - 1;
+        } else {
+            let shift = self.gap_start.abs_diff(new_idx);
+
+            if new_idx < self.gap_start {
+                // Moving gap left
+                for i in 0..shift {
+                    self.buffer[self.gap_end] = self.buffer[self.gap_start - i - 1];
+                    self.buffer[self.gap_start - i - 1] = char::default();
+
+                    self.gap_end -= 1;
+                }
+            } else if new_idx > self.gap_start {
+                // Moving gap right
+                for _ in 0..shift {
+                    self.gap_end += 1;
+
+                    self.buffer[self.gap_start] = self.buffer[self.gap_end];
+                    self.buffer[self.gap_end] = char::default();
+
+                    self.gap_start += 1;
+                }
+            }
+
+            self.gap_start = new_idx;
         }
     }
 }
