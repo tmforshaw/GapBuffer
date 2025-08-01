@@ -51,10 +51,10 @@ impl GapBuffer {
         }
     }
 
-    pub fn insert_str(&mut self, string: &str) {
-        self.length += string.len();
+    pub fn insert_str<S: AsRef<str>>(&mut self, string: S) {
+        self.length += string.as_ref().len();
 
-        for chr in string.chars() {
+        for chr in string.as_ref().chars() {
             self.buffer[self.gap_start] = chr;
             self.gap_start += 1;
         }
