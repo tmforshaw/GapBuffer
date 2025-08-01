@@ -24,4 +24,19 @@ fn main() {
 
     buf.insert('G');
     println!("{buf:?}");
+
+    buf.move_to(2);
+    println!("{buf:?}");
+
+    buf.move_to(4);
+    println!("{buf:?}");
+
+    buf.insert('H');
+    println!("{buf:?}");
+
+    buf.move_to(15);
+    println!("{buf:?}");
+
+    buf.insert('I');
+    println!("{buf:?}");
 }

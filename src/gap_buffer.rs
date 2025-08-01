@@ -2,7 +2,6 @@ pub const BUFFER_LEN: usize = 1024;
 
 pub struct GapBuffer {
     pub buffer: [char; BUFFER_LEN],
-    pub current_idx: usize,
     pub length: usize,
     pub gap_start: usize,
     pub gap_end: usize,
@@ -12,7 +11,6 @@ impl Default for GapBuffer {
     fn default() -> Self {
         Self {
             buffer: [char::default(); BUFFER_LEN],
-            current_idx: 0,
             length: 0,
             gap_start: 0,
             gap_end: BUFFER_LEN - 1,
@@ -26,28 +24,17 @@ impl GapBuffer {
     }
 
     pub fn insert(&mut self, chr: char) {
-        // If the inserted char is not within the gap
-        if self.current_idx <= self.gap_start {
-            self.buffer[self.current_idx] = chr;
-            self.current_idx += 1;
-            self.gap_start += 1;
-            self.length += 1;
-        } else {
-            todo!()
-        }
+        self.buffer[self.gap_start] = chr;
+        self.gap_start += 1;
+        self.length += 1;
     }
 
     pub fn insert_str(&mut self, string: &str) {
-        self.gap_start += string.len();
         self.length += string.len();
 
         for chr in string.chars() {
-            if self.current_idx <= self.gap_start {
-                self.buffer[self.current_idx] = chr;
-                self.current_idx += 1;
-            } else {
-                todo!()
-            }
+            self.buffer[self.gap_start] = chr;
+            self.gap_start += 1;
         }
     }
 
@@ -67,16 +54,16 @@ impl GapBuffer {
             // Move all values past the gap end to their original position (up to the new index)
             else if new_idx > self.gap_start {
                 for i in (self.gap_end + 1)..(BUFFER_LEN - (self.length - new_idx)) {
-                    let before_gap_idx = i - self.gap_end;
+                    let before_gap_idx = i - (self.gap_end - (new_idx - self.gap_start)) - 1;
 
                     self.buffer[before_gap_idx] = self.buffer[i];
                     self.buffer[i] = char::default();
                 }
 
-                self.gap_end += self.length - new_idx;
+                self.gap_end += self.length - new_idx - 1;
             }
 
-            self.current_idx = new_idx;
+            // self.current_idx = new_idx;
             self.gap_start = new_idx;
         }
         // New index is within the gap, but past the length
@@ -89,7 +76,7 @@ impl GapBuffer {
                 self.buffer[i] = char::default();
             }
 
-            self.current_idx = self.length;
+            // self.current_idx = self.length;
             self.gap_start = self.length;
             self.gap_end = BUFFER_LEN - 1;
         }
