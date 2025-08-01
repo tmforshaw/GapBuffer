@@ -23,10 +23,33 @@ impl GapBuffer {
         Self::default()
     }
 
+    pub fn gap_size(&self) -> usize {
+        self.gap_end.saturating_sub(self.gap_start) + 1
+    }
+
     pub fn insert(&mut self, chr: char) {
+        if self.gap_size() == 0 {
+            panic!("Could not insert char, gap size too small");
+        }
+
         self.buffer[self.gap_start] = chr;
         self.gap_start += 1;
         self.length += 1;
+    }
+
+    pub fn insert_str<S: AsRef<str>>(&mut self, string: S) {
+        let string = string.as_ref();
+
+        if self.gap_size() < string.len() {
+            panic!("Could not insert string, gap size too small: {}", self.gap_size());
+        }
+
+        self.length += string.len();
+
+        for chr in string.chars() {
+            self.buffer[self.gap_start] = chr;
+            self.gap_start += 1;
+        }
     }
 
     // Removes the char before the gap_start
@@ -48,15 +71,6 @@ impl GapBuffer {
                 self.gap_start -= 1;
                 self.buffer[self.gap_start] = char::default();
             }
-        }
-    }
-
-    pub fn insert_str<S: AsRef<str>>(&mut self, string: S) {
-        self.length += string.as_ref().len();
-
-        for chr in string.as_ref().chars() {
-            self.buffer[self.gap_start] = chr;
-            self.gap_start += 1;
         }
     }
 
@@ -83,21 +97,21 @@ impl GapBuffer {
             if new_idx < self.gap_start {
                 // Moving gap left
                 for i in 0..shift {
-                    self.buffer[self.gap_end] = self.buffer[self.gap_start - i - 1];
+                    self.buffer[self.gap_end - i] = self.buffer[self.gap_start - i - 1];
                     self.buffer[self.gap_start - i - 1] = char::default();
-
-                    self.gap_end -= 1;
                 }
+
+                self.gap_end -= shift;
             } else if new_idx > self.gap_start {
                 // Moving gap right
-                for _ in 0..shift {
-                    self.gap_end += 1;
-
-                    self.buffer[self.gap_start] = self.buffer[self.gap_end];
-                    self.buffer[self.gap_end] = char::default();
+                for i in 0..shift {
+                    self.buffer[self.gap_start] = self.buffer[self.gap_end + i + 1];
+                    self.buffer[self.gap_end + i + 1] = char::default();
 
                     self.gap_start += 1;
                 }
+
+                self.gap_end += shift;
             }
 
             self.gap_start = new_idx;
