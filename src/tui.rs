@@ -24,7 +24,7 @@ pub fn init_tui() -> Result<(), io::Error> {
     let mut term = Terminal::new(backend)?;
 
     let mut gap_buffer = GapBuffer::new();
-    draw_to_terminal(&mut term, gap_buffer.to_string())?;
+    draw_to_terminal(&mut term, gap_buffer.to_string(), gap_buffer.gap_start)?;
 
     // TODO Show a cursor witin the block
 
@@ -38,18 +38,9 @@ pub fn init_tui() -> Result<(), io::Error> {
                     kind: _,
                     state: _,
                 } => match code {
-                    KeyCode::Char(chr) => {
-                        gap_buffer.insert(chr);
-                        draw_to_terminal(&mut term, gap_buffer.to_string())?;
-                    }
-                    KeyCode::Backspace => {
-                        gap_buffer.remove();
-                        draw_to_terminal(&mut term, gap_buffer.to_string())?;
-                    }
-                    KeyCode::Enter => {
-                        gap_buffer.insert('\n');
-                        draw_to_terminal(&mut term, gap_buffer.to_string())?;
-                    }
+                    KeyCode::Char(chr) => gap_buffer.insert(chr),
+                    KeyCode::Backspace => gap_buffer.remove(),
+                    KeyCode::Enter => gap_buffer.insert('\n'),
                     KeyCode::Right => gap_buffer.move_to(gap_buffer.gap_start + 1),
                     KeyCode::Left => gap_buffer.move_to(gap_buffer.gap_start - 1),
                     KeyCode::Esc => break,
@@ -58,6 +49,8 @@ pub fn init_tui() -> Result<(), io::Error> {
             },
             _ => {}
         }
+
+        draw_to_terminal(&mut term, gap_buffer.to_string(), gap_buffer.gap_start)?;
     }
 
     // restore terminal
@@ -71,10 +64,13 @@ pub fn init_tui() -> Result<(), io::Error> {
 pub fn draw_to_terminal<S: AsRef<str>>(
     term: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
     text: S,
+    gap_start: usize,
 ) -> Result<(), std::io::Error> {
     let style = Style::default()
         .fg(Color::Yellow)
         .add_modifier(Modifier::ITALIC | Modifier::BOLD);
+
+    let cursor_style = Style::default().fg(Color::Black).bg(Color::White);
 
     term.draw(|f| {
         let chunks = Layout::default()
@@ -83,7 +79,7 @@ pub fn draw_to_terminal<S: AsRef<str>>(
             .constraints([Constraint::Percentage(100)].as_ref())
             .split(f.size());
 
-        let text = str_into_spans_styled(text.as_ref(), style);
+        let text = str_into_spans_styled_with_cursor(text.as_ref(), gap_start, style, cursor_style);
 
         let paragraph = Paragraph::new(text)
             .block(Block::default().title("Gap Buffer Example").borders(Borders::ALL))
@@ -102,4 +98,54 @@ pub fn str_into_spans_styled(text: &str, style: Style) -> Vec<Spans<'_>> {
     text.split_terminator('\n')
         .map(|s| Spans::from(Span::styled(s, style)))
         .collect::<Vec<_>>()
+}
+
+pub fn str_into_spans_styled_with_cursor<'a>(
+    text: &'a str,
+    gap_start: usize,
+    style: Style,
+    cursor_style: Style,
+) -> Vec<Spans<'a>> {
+    if gap_start == 0 {
+        if text.is_empty() {
+            vec![Spans::from(Span::styled(' '.to_string(), cursor_style))]
+        } else {
+            str_into_spans_styled(text, style)
+        }
+    } else {
+        let text_string = text.chars().collect::<Vec<_>>();
+        let (text_before, text_on, text_after) = (
+            text_string[..gap_start - 1].iter().collect::<String>(),
+            text_string[gap_start - 1],
+            text_string[gap_start..].iter().collect::<String>(),
+        );
+
+        let mut styled_before = text_before
+            .split_terminator('\n')
+            .map(ToString::to_string)
+            .map(|s| Spans::from(Span::styled(s, style)))
+            .collect::<Vec<_>>();
+
+        let styled_on = Span::styled(text_on.to_string(), cursor_style);
+
+        let len = styled_before.len();
+        if len > 0 {
+            styled_before.get_mut(len - 1).unwrap().0.push(styled_on);
+        } else {
+            styled_before = vec![Spans::from(styled_on)];
+        }
+
+        let mut styled_after = text_after
+            .split_terminator('\n')
+            .map(ToString::to_string)
+            .map(|s| Span::styled(s, style))
+            .collect::<Vec<_>>();
+
+        let len = styled_before.len();
+        if len > 0 {
+            styled_before.get_mut(len - 1).unwrap().0.append(&mut styled_after);
+        }
+
+        styled_before
+    }
 }
